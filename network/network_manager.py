@@ -4,9 +4,10 @@
 import Tkinter
 import tkMessageBox
 import ifconfig
+import route
+import socket
 import subprocess
 
-import socket
 
 class NetworkSetupDialog:
     def __init__(self, on_save, on_cancel, on_close):
@@ -74,7 +75,6 @@ class NetworkSetupDialog:
 
         return True
 
-
     def destroy(self):
         self.win.destroy()
 
@@ -91,6 +91,7 @@ class NetworkStatusDialog:
         labels = Tkinter.Frame(frame)
         Tkinter.Label(labels, text="Address:").pack(side=Tkinter.TOP, pady=4)
         Tkinter.Label(labels, text="Netmask:").pack(side=Tkinter.TOP, pady=4)
+        Tkinter.Label(labels, text="Gateway:").pack(side=Tkinter.TOP, pady=4)
         Tkinter.Label(labels, text="MAC Addr:").pack(side=Tkinter.TOP, pady=4)
         labels.pack(side=Tkinter.LEFT)
 
@@ -101,6 +102,8 @@ class NetworkStatusDialog:
         self.address.pack(side=Tkinter.TOP, pady=4)
         self.netmask = Tkinter.Label(entris, text=eth0.get_netmask_str())
         self.netmask.pack(side=Tkinter.TOP, pady=4)
+        self.gateway = Tkinter.Label(entris, text=route.get_default_gw())
+        self.gateway.pack(side=Tkinter.TOP, pady=4)
         self.macaddr = Tkinter.Label(entris, text=eth0.get_mac())
         self.macaddr.pack(side=Tkinter.TOP, pady=4)
         entris.pack(side=Tkinter.LEFT)
