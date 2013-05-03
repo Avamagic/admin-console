@@ -10,7 +10,7 @@ import subprocess
 
 
 class NetworkSetupDialog:
-    def __init__(self, on_save, on_cancel, on_close):
+    def __init__(self, info, on_save, on_cancel, on_close):
         self.win = Tkinter.Toplevel()
         self.win.title("Network Setup")
         self.win.protocol("WM_DELETE_WINDOW", on_close)
@@ -32,6 +32,11 @@ class NetworkSetupDialog:
         self.netmask.pack(side=Tkinter.TOP, pady=4)
         self.gateway = Tkinter.Entry(entris)
         self.gateway.pack(side=Tkinter.TOP, pady=4)
+
+        self.address.insert(0, info["address"])
+        self.netmask.insert(0, info["netmask"])
+        self.gateway.insert(0, info["gateway"])
+
         entris.pack(side=Tkinter.LEFT)
 
         frame.pack(side=Tkinter.TOP)
@@ -80,7 +85,7 @@ class NetworkSetupDialog:
 
 
 class NetworkStatusDialog:
-    def __init__(self, on_edit, on_exit, on_close):
+    def __init__(self, info, on_edit, on_exit, on_close):
         self.win = Tkinter.Toplevel()
         self.win.title("Network Status")
         self.win.protocol("WM_DELETE_WINDOW", on_close)
@@ -98,13 +103,13 @@ class NetworkStatusDialog:
         eth0 = ifconfig.findif("eth0")
 
         entris = Tkinter.Frame(frame)
-        self.address = Tkinter.Label(entris, text=eth0.get_ip())
+        self.address = Tkinter.Label(entris, text=info["address"])
         self.address.pack(side=Tkinter.TOP, pady=4)
-        self.netmask = Tkinter.Label(entris, text=eth0.get_netmask_str())
+        self.netmask = Tkinter.Label(entris, text=info["netmask"])
         self.netmask.pack(side=Tkinter.TOP, pady=4)
-        self.gateway = Tkinter.Label(entris, text=route.get_default_gw())
+        self.gateway = Tkinter.Label(entris, text=info["gateway"])
         self.gateway.pack(side=Tkinter.TOP, pady=4)
-        self.macaddr = Tkinter.Label(entris, text=eth0.get_mac())
+        self.macaddr = Tkinter.Label(entris, text=info["macaddr"])
         self.macaddr.pack(side=Tkinter.TOP, pady=4)
         entris.pack(side=Tkinter.LEFT)
 
@@ -130,20 +135,29 @@ class NetworkStatusDialog:
         self.win.destroy()
 
 
-
-
 class App:
     def __init__(self, master):
         self.master = master
         self.master.withdraw()
         self.show_status_dialog()
 
+    def get_network_info(self):
+        info = {}
+        eth0 = ifconfig.findif("eth0")
+        info["address"] = eth0.get_ip()
+        info["netmask"] = eth0.get_netmask_str()
+        info["gateway"] = route.get_default_gw()
+        info["macaddr"] = eth0.get_mac()
+        return info
+
     def show_status_dialog(self):
-        self.status_dialog = NetworkStatusDialog(self.on_edit_setup,
+        info = self.get_network_info()
+        self.status_dialog = NetworkStatusDialog(info, self.on_edit_setup,
             self.on_exit, self.on_exit)
 
     def show_setup_dialog(self):
-        self.setup_dialog = NetworkSetupDialog(self.on_save_setup,
+        info = self.get_network_info()
+        self.setup_dialog = NetworkSetupDialog(info, self.on_save_setup,
             self.on_cancel_setup, self.on_cancel_setup)        
 
     def on_edit_setup(self):
@@ -158,9 +172,37 @@ class App:
         address = dialog.address.get()
         netmask = dialog.netmask.get()
         gateway = dialog.gateway.get()
-        print "Save %s, %s, %s" % (address, netmask, gateway)
         self.setup_dialog.destroy()
+
+        print "Save %s, %s, %s" % (address, netmask, gateway)
+        self.save_fixed_ip_config("/etc/network/interfaces", address, netmask, gateway)
+        self.restart_network()
         self.show_status_dialog()
+
+    def save_fixed_ip_config(self, pathname, address, netmask, gateway):
+        try:
+            # This will create a new file or **overwrite an existing file**.
+            f = open(pathname, "w")
+            try:
+                f.write("auto lo\n")
+                f.write("iface lo inet loopback\n")
+                f.write("\n")
+                f.write("auto eth0\n")
+                f.write("iface eth0 inet static\n")
+                f.write("address %s\n" % address)
+                f.write("netmask %s\n" % netmask)
+                f.write("gateway %s\n" % gateway)
+            finally:
+                f.close()
+        except IOError:
+            pass
+
+    def restart_network(self):
+        cmd = "sudo /etc/init.d/networking restart"
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+        process.wait()
+        ret = process.returncode
+        print "restart networking result:", ret
 
     def on_cancel_setup(self):
         self.setup_dialog.destroy()
